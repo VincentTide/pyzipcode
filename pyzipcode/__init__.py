@@ -10,12 +10,12 @@ class ConnectionManager(object):
     """
     Assumes a database that will work with cursor objects
     """
-    
+
     def __init__(self):
         # test out the connection...
         conn = sqlite3.connect(db_location)
         conn.close()
-            
+
     def query(self, sql, args):
         conn = None
         retry_count = 0
@@ -27,10 +27,10 @@ class ConnectionManager(object):
             except sqlite3.OperationalError, x:
                 retry_count += 1
                 time.sleep(0.001)
-        
+
         if not conn and retry_count > 10:
             raise sqlite3.OperationalError("Can't connect to sqlite database.")
-                
+
         cursor = conn.cursor()
         cursor.execute(sql, args)
         res = cursor.fetchall()
@@ -38,7 +38,7 @@ class ConnectionManager(object):
         return res
 
 ZIP_QUERY = "SELECT * FROM ZipCodes WHERE zip=?"
-ZIP_RANGE_QUERY = "SELECT * FROM ZipCodes WHERE longitude >= %s and longitude <= %s AND latitude >= %s and latitude <= %s"
+ZIP_RANGE_QUERY = "SELECT * FROM ZipCodes WHERE longitude >= ? and longitude <= ? AND latitude >= ? and latitude <= ?"
 ZIP_FIND_QUERY = "SELECT * FROM ZipCodes WHERE city LIKE ? AND state LIKE ?"
 
 class ZipCode(object):
@@ -59,56 +59,50 @@ def format_result(zips):
 
 class ZipNotFoundException(Exception):
     pass
-    
+
 class ZipCodeDatabase(object):
-    
+
     def __init__(self, conn_manager=None):
         if conn_manager is None:
             conn_manager = ConnectionManager()
         self.conn_manager = conn_manager
-        
+
     def get_zipcodes_around_radius(self, zip, radius):
         zips = self.get(zip)
         if zips is None:
             raise ZipNotFoundException("Could not find zip code you're searching by.")
         else:
             zip = zips[0]
-        
+
         radius = float(radius)
-        
+
         long_range = (zip.longitude-(radius/69.0), zip.longitude+(radius/69.0))
         lat_range = (zip.latitude-(radius/49.0), zip.latitude+(radius/49.0))
-        
-        return format_result(self.conn_manager.query(ZIP_RANGE_QUERY % (
+
+        return format_result(self.conn_manager.query(ZIP_RANGE_QUERY, [
             long_range[0], long_range[1],
             lat_range[0], lat_range[1]
-        )))
-                    
+        ]))
+
     def find_zip(self, city=None, state=None):
         if city is None:
             city = "%"
         else:
             city = city.upper()
-            
+
         if state is None:
             state = "%"
         else:
             state = state.upper()
-            
+
         return format_result(self.conn_manager.query(ZIP_FIND_QUERY, [city, state]))
-        
+
     def get(self, zip):
         return format_result(self.conn_manager.query(ZIP_QUERY, [zip]))
-            
+
     def __getitem__(self, zip):
         zip = self.get(str(zip))
         if zip is None:
             raise IndexError("Couldn't find zip")
         else:
             return zip[0]
-            
-    
-        
-        
-        
-        
